@@ -1,0 +1,188 @@
+#!/bin/bash
+
+
+######### note:
+#ejecting might require script to be run with sudo. alternatively add user to disk group:
+#sudo usermod -a -G disk YourUserName
+
+
+#####################################  usb  #################################
+isDevMounted () { findmnt -rno SOURCE        "$1" >/dev/null;} #device only
+getMountpoint () { findmnt -nro TARGET -S "$1";}
+#!/bin/bash
+
+#### info:
+# run as root or ad user to group diks:
+#sudo usermod -a -G disk manuel
+
+############ begin usb ##################
+
+getMountpoint() {
+    if (($# >0)); then
+        findmnt -rno TARGET -S "$1"
+    else
+        return 2
+    fi
+}
+isDevMounted () { findmnt -rno SOURCE "$1" > /dev/null;}
+isConnected () { udisksctl status | grep -qs "Teenage OP-1";}
+getDev() { #assumes that OP-1 is connected
+    if ! usblongname=$(udisksctl status | grep "Teenage OP-1");then
+        return 2
+    fi
+    read -ra arr <<<"$usblongname"
+    local usbname="${arr[-1]}"
+    echo "/dev/$usbname"
+    return 0
+}
+
+getFolder() { #assumes that OP-1 is connected and mounted
+    getMountpoint $(getDev)
+}
+
+
+_mount() { #takes devname
+    local devname=$1
+    if isDevMounted $devname; then
+        echo "Did not mount OP-1: already mounted"
+        return 3
+    fi
+    udisksctl mount -b $devname
+}
+
+mount_op (){
+    if ! isConnected; then
+        echo "Could not mount OP-1: not connected"
+        return 2
+    fi
+    local devname=$(getDev)
+    _mount $devname
+}
+
+
+_eject(){ #takes devname
+    local devname=$1
+    sync
+    if ! isDevMounted $devname; then
+        udisksctl unmount -b $devname
+    fi
+    eject $devname
+    return
+}
+
+eject_op(){ #takes devname
+    if ! isConnected; then
+        echo "Could not eject OP-1: not connected"
+        return 2
+    fi
+    local devname=$(getDev)
+    _eject $devname
+    while isConnected; do
+        sleep .5;
+    done;
+    echo "Ejected OP-1"
+}
+
+usb_status () {
+    if ! isConnected; then
+        echo "OP-1 not connected"
+        return 2
+    fi
+    local devname=$(getDev)
+    if ! isDevMounted $devname; then
+        echo "OP-1 connected, but not mounted"
+        return 1
+    fi
+    echo OP-1 connected and mounted at $(getMountpoint $devname)
+    return 0
+
+}
+
+wait_for_op (){
+    while ! isConnected; do
+        sleep .5;
+    done;
+}
+
+wait_and_mount_op(){
+    wait_for_op
+    mount_op
+}
+
+
+wait_mount_get_folder(){
+    wait_and_mount_op > /dev/null
+    getFolder
+}
+
+#####################################  end usb  #################################
+##############################  start label gen  #################################
+
+backup_user(){ #gets folder name
+    op=$(getFolder)
+    if [ $? -ne 0 ]; then
+        echo "Could not get OP1 Folder"
+        return 8
+    fi
+
+    if (($# <1)); then
+        bu="backup_user_synth"
+    else
+        bu="$1"
+    fi
+    if ! mkdir "$bu" 2>/dev/null; then
+        echo "Could not make fresh folder for backup"
+        return 7
+    fi
+
+    cp -a "$op/synth/user/." "$bu"
+
+    echo "Made user synth Backup"
+    return 0
+}
+
+
+backup_restore(){ #gets folder name
+    op=$(getFolder)
+    if [ $? -ne 0 ]; then
+        echo "Could not get OP1 Folder"
+        return 8
+    fi
+    if (($# <1)); then
+        bu="backup_user_synth"
+    else
+        bu="$1"
+    fi
+
+    cp -a  "$bu/." "$op/synth/user/"
+    echo "Restored user synth Backup"
+    #rmdir "$bu"
+}
+
+label_once() {
+    if (( $# % 2 )); then
+        echo odd number of parameters
+        return 5
+    fi
+    if (( $# > 16 )); then
+        echo to many parameters
+        return 6
+    fi
+
+    rm -r "$op"/synth/user/*
+
+}
+
+
+############################## end label gen  #################################
+
+usb_status
+#eject_op
+#exit
+wait_and_mount_op
+backup_user|| { echo 'backup failed. stopping script' ; exit 1; }
+label_once
+sleep 1
+backup_restore
+#eject_op
+#usb_status
