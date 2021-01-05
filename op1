@@ -30,14 +30,15 @@ getDev() { #assumes that OP-1 is connected
     if ! usblongname=$(udisksctl status | grep "Teenage OP-1");then
         return 2
     fi
-    read -ra arr <<<"$usblongname"
-    local usbname="${arr[-1]}"
+    read -ra array <<<"$usblongname"
+    local usbname="${array[-1]}"
     echo "/dev/$usbname"
     return 0
 }
 
 getFolder() { #assumes that OP-1 is connected and mounted
-    getMountpoint $(getDev)
+    local devname=$(getDev)
+    getMountpoint "$devname"
 }
 
 
@@ -99,6 +100,7 @@ usb_status () {
 }
 
 wait_for_op (){
+    echo Wait for OP-1
     while ! isConnected; do
         sleep .5;
     done;
@@ -122,7 +124,7 @@ backup_user(){ #gets folder name
     op=$(getFolder)
     if [ $? -ne 0 ]; then
         echo "Could not get OP1 Folder"
-        return 8
+        return 9
     fi
 
     if (($# <1)); then
@@ -132,7 +134,7 @@ backup_user(){ #gets folder name
     fi
     if ! mkdir "$bu" 2>/dev/null; then
         echo "Could not make fresh folder for backup"
-        return 7
+        return 8
     fi
 
     cp -a "$op/synth/user/." "$bu"
@@ -159,7 +161,7 @@ backup_restore(){ #gets folder name
     #rmdir "$bu"
 }
 
-label_once() {
+label_once() { # parameters: 1_in 2_in ... 8_in 1_out 2_out ... 8_out
     if (( $# % 2 )); then
         echo odd number of parameters
         return 5
@@ -168,21 +170,124 @@ label_once() {
         echo to many parameters
         return 6
     fi
+    if (( $# < 1 )); then
+        echo no parameters given
+        return 7
+    fi
 
-    rm -r "$op"/synth/user/*
+    op=$(getFolder)
+    if [ $? -ne 0 ]; then
+        echo "Could not get OP1 Folder"
+        return 9
+    fi
+
+    local num_slots=$(($# / 2))
+
+    for ((i = 1; i <= $num_slots; i++ )); do
+        rm "$op"/synth/user/"$i".aif
+        cp "${!i}" "$op"/synth/user/"$i".aif
+    done
+
+
+    eject_op
+    echo "Please wait until data is processed, press any key on OP-1 and put OP-1 in disk-mode again"
+    op=$(wait_mount_get_folder)
+
+    if [ $? -ne 0 ]; then
+        echo "Could not get OP1 Folder"
+        return 9
+    fi
+
+    for ((i = 1; i <= $num_slots; i++ )); do
+        j=$((i + num_slots))
+        mkdir -p "$(dirname "${!j}")"
+        cp "$op"/synth/user/"$i".aif "${!j}"
+    done
+
+    #rm -r "$op"/synth/user/*
 
 }
 
+label_multi() { # parameters: 1_in 1_out 2_in 2_out ...... n_in n_out
+    declare -a inlist
+    declare -a outlist
+    inlist=()
+    outlist=()
+    (( rounds_left=($#+16-1)/16))
+    echo "$rounds_left" rounds left
+    echo "Please connect OP-1 and put it in disk-mode"
+    wait_and_mount_op
+    while [ -n "$2" ]; do
+        if (( ${#inlist[@]} < 8 )); then
+            inlist+=( "$1" )
+            outlist+=( "$2" )
+            shift
+            shift
+        else
+            #(( rounds_left=($#+16-1)/16 +1))
+            #echo "$rounds_left" rounds left
+            label_once "${inlist[@]}" "${outlist[@]}"
+            (( rounds_left=($#+16-1)/16 ))
+            echo "$rounds_left" rounds left
+            inlist=()
+            outlist=()
+        fi
+    done
+    if (( ${#inlist[@]} > 0 )); then
+        #echo "1 round left"
+        label_once "${inlist[@]}" "${outlist[@]}"
+        echo Done
+    fi
+
+}
+
+label_folder() {
+    if (( $# <1 )); then
+        echo not enough arguments given
+        return 10
+    fi
+    if (( $# <2 )); then
+        local folder1_full=$(readlink -f "$1")
+        folder2="$folder1_full"_labeled
+    else
+        folder2="$2"
+    fi
+    mkdir -p "$folder2"
+    parameters=()
+    pushd "$1" > /dev/null
+    IFS_backup="$IFS"
+    IFS=$'\n' #change bash variable separator
+    for f in $(find . -name '*.aif'); do
+        if $( grep -qs '"type":"sampler"}' "$f"); then
+            mkdir -p "$(dirname "$folder2${f:1}")"
+            cp "$f" "$folder2${f:1}"
+        else
+            parameters+=( "$1${f:1}" "$folder2${f:1}" )
+        fi
+    done
+    IFS="$IFS_backup"
+    popd > /dev/null
+    label_multi "${parameters[@]}"
+    #label_multi ${parameters[@]}
+
+    #pushd "$2" > /dev/null
+    #popd > /dev/null
+}
 
 ############################## end label gen  #################################
 
 usb_status
+#backup_user "$@"
+#label_folder "$@"
+backup_restore "$@"
+
+#usb_status
 #eject_op
 #exit
-wait_and_mount_op
-backup_user|| { echo 'backup failed. stopping script' ; exit 1; }
-label_once
-sleep 1
-backup_restore
+#wait_and_mount_op
+#backup_user|| { echo 'backup failed. stopping script' ; exit 1; }
+#label_once
+#sleep 1
+#backup_restore
 #eject_op
 #usb_status
