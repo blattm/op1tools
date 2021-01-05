@@ -33,10 +33,25 @@ usage: ./op1 command ...
 
 The commands are
 
+### count
+Counts how many patches are on your OP-1 and how close you are to the limits
+
 ### label infolder [outfolder]
-Uses the OP-1 to add sound samples to all OP-1 patches in the folder specified via infolder. If no outfolder is given, results are saved in infolder_labeled. WARNING: THIS ACTION WILL OVERWRITE YOUR synth/user FOLDER ON THE OP-1. Please use backup-user-synth and restore-user-synth before resp. after using this command! You have to run the command with sudo (not recommended) or add yourself to the disk group, via
+Uses the OP-1 to add sound samples to all OP-1 patches in the folder specified via infolder. If no outfolder is given, results are saved in infolder_labeled. WARNING: THIS ACTION WILL OVERWRITE YOUR synth/user FOLDER ON THE OP-1. Please use backup-user-synth and restore-user-synth before resp. after using this command!
+
+You have to run the command with sudo (not recommended) or add yourself to the disk group, via
 
 sudo usermod -a -G disk YourUserName
+
+### backup-user-synth [folder]
+Backups the synth/user to the specified folder. "
+If no folder is given, the backup will be placed in backup_user_synth
+
+### restore-user-synth [folder]
+Restores synth/user from the specified folder. If no folder is given, the backup will be taken from backup_user_synth
+
+### backup [folder]
+Backups the whole OP-1 to the specified folder. If no folder is given, the backup will be placed in current folder
 
 ### status
 Returns the USB connection and mount status of the OP-1
@@ -45,19 +60,11 @@ Returns the USB connection and mount status of the OP-1
 Mounts the OP-1
 
 ### eject
-Ejects / savely removes the OP-1. You have to run the command with sudo (not recommended) or add yourself to the disk group, via
+Ejects / savely removes the OP-1.
+
+You have to run the command with sudo (not recommended) or add yourself to the disk group, via
 
 sudo usermod -a -G disk YourUserName
-
-### backup [folder]
-Backups the whole OP-1 to the specified folder. If no folder is given, the backup will be placed in current folder
-
-### backup-user-synth [folder]
-Backups the synth/user to the specified folder. "
-If no folder is given, the backup will be placed in backup_user_synth
-
-### restore-user-synth [folder]
-Restores synth/user from the specified folder. If no folder is given, the backup will be taken from backup_user_synth
 
 ### wait
 Wait until the OP-1 is connected via usb.
