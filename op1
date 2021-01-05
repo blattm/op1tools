@@ -42,13 +42,24 @@ getFolder() { #assumes that OP-1 is connected and mounted
 }
 
 
+getFolder_Mount() { #assumes that OP-1 is connected and mounted
+    local devname=$(getDev)
+    if [ $? -ne 0 ]; then
+        return 2
+    fi
+    if ! isDevMounted $devname; then
+        _mount "$devname" > /dev/null
+    fi
+    getMountpoint "$devname"
+}
+
 _mount() { #takes devname
     local devname=$1
-    if isDevMounted $devname; then
+    if isDevMounted "$devname"; then
         echo "Did not mount OP-1: already mounted"
         return 3
     fi
-    udisksctl mount -b $devname
+    udisksctl mount -b "$devname"
 }
 
 mount_op (){
@@ -57,7 +68,7 @@ mount_op (){
         return 2
     fi
     local devname=$(getDev)
-    _mount $devname
+    _mount "$devname"
 }
 
 
@@ -90,7 +101,7 @@ usb_status () {
         return 2
     fi
     local devname=$(getDev)
-    if ! isDevMounted $devname; then
+    if ! isDevMounted "$devname"; then
         echo "OP-1 connected, but not mounted"
         return 1
     fi
@@ -116,6 +127,7 @@ wait_mount_get_folder(){
     wait_and_mount_op > /dev/null
     getFolder
 }
+
 
 #####################################  end usb  #################################
 ##############################  start label gen  #################################
@@ -145,7 +157,7 @@ backup_user(){ #gets folder name
 
 
 backup_restore(){ #gets folder name
-    op=$(getFolder)
+    op=$(getFolder_Mount)
     if [ $? -ne 0 ]; then
         echo "Could not get OP1 Folder"
         return 8
@@ -175,7 +187,7 @@ label_once() { # parameters: 1_in 2_in ... 8_in 1_out 2_out ... 8_out
         return 7
     fi
 
-    op=$(getFolder)
+    op=$(getFolder_Mount)
     if [ $? -ne 0 ]; then
         echo "Could not get OP1 Folder"
         return 9
@@ -274,12 +286,52 @@ label_folder() {
     #popd > /dev/null
 }
 
+
+
+backup_op() {
+    op=$(getFolder_Mount)
+    if [ $? -ne 0 ]; then
+        echo "Could not get OP1 Folder"
+        return 9
+    fi
+
+    dt=$(date '+%Y-%m-%d_%H:%M:%S');
+    if (($# <1)); then
+        folder="$dt"
+    else
+        folder="$1/$dt"
+    fi
+
+    #mkdir "$folder"
+    cp -r "$op" "$folder"
+    echo backup to $dt
+
+}
+
+op1_count() {
+    op=$(getFolder_Mount)
+    if [ $? -ne 0 ]; then
+        echo "Could not get OP1 Folder"
+        return 9
+    fi
+    synandsamp=$( find "$op"/synth/ -type f | wc -l )
+    drum=$( find "$op"/drum/ -type f | wc -l )
+    samp=$( grep '"type":"sampler"}' "$op"/synth/*/* | wc -l)
+    syn=$(( $synandsamp-$samp ))
+
+    echo -e "Synthesizer patches \t$syn / 100"
+    echo -e "Sampler pathes \t\t$samp / 40"
+    echo -e "Drum patches \t\t$drum / 40"
+}
+
+
+
 ############################## end label gen  #################################
 
-usb_status
+#usb_status
 #backup_user "$@"
 #label_folder "$@"
-backup_restore "$@"
+#backup_restore "$@"
 
 #usb_status
 #eject_op
@@ -291,3 +343,105 @@ backup_restore "$@"
 #backup_restore
 #eject_op
 #usb_status
+
+case "$1" in
+    status)
+        shift
+        usb_status "$@"
+        exit
+        ;;
+    eject)
+        shift
+        eject_op "$@"
+        exit
+        ;;
+    mount)
+        shift
+        mount_op "$@"
+        exit
+        ;;
+    label)
+        shift
+        label_folder "$@"
+        exit
+        ;;
+    backup-user-synth)
+        shift
+        backup_user "$@"
+        exit
+        ;;
+    restore-user-synth)
+        shift
+        backup_restore "$@"
+        exit
+        ;;
+    wait)
+        shift
+        wait_for_op "$@"
+        exit
+        ;;
+    wait-mount)
+        shift
+        wait_and_mount_op "$@"
+        exit
+        ;;
+    backup)
+        shift
+        backup_op "$@"
+        exit
+        ;;
+    count)
+        shift
+        op1_count "$@"
+        exit
+        ;;
+    folder)
+        shift
+        getFolder "$@"
+        exit
+        ;;
+    folder-mount)
+        shift
+        getFolder_Mount "$@"
+        exit
+        ;;
+    *)
+        echo usage: "$0" command ...
+        echo
+        echo commands:
+
+        echo -e "  status \t\t\t Returns the USB connection and mount status of the OP-1"
+
+        echo -e "  mount \t\t\t Mounts the OP-1"
+
+        echo -e "  eject \t\t\t Ejects / savely removes the OP-1"
+
+        echo -e "  backup [folder] \t\t Backups the whole OP-1 to the specified folder. "
+        echo -e "   \t\t\t\t If no folder is given, the backup will be placed in current folder"
+
+        echo -e "  backup-user-synth [folder] \t Backups the synth/user to the specified folder. "
+        echo -e "   \t\t\t\t If no folder is given, the backup will be placed in backup_user_synth"
+
+        echo -e "  restore-user-synth [folder] \t Restores synth/user from the specified folder. "
+        echo -e "   \t\t\t\t If no folder is given, the backup will be taken from backup_user_synth"
+
+        echo -e "  label infolder [outfolder] \t Uses the OP-1 to add sound samples to all"
+        echo -e "   \t\t\t\t OP-1 patches in infolder. If no outfolder is given, results are"
+        echo -e "   \t\t\t\t saved in infolder_labeled. WARNING: THIS ACTION WILL OVERWRITE YOUR"
+        echo -e "   \t\t\t\t synth/user FOLDER ON THE OP-1. Please use backup-user-synth and "
+        echo -e "   \t\t\t\t restore-user-synth before resp. after using this command!"
+        echo -e "   \t\t\t\t You have to run the command with sudo (not recommended) or add yourself"
+        echo -e "   \t\t\t\t to the disk group, via"
+        echo -e "   \t\t\t\t sudo usermod -a -G disk YourUserName"
+
+        echo -e "  wait \t\t\t\t Wait until the OP-1 is connected via usb."
+
+        echo -e "  wait-mount \t\t\t Wait until the OP-1 is connected via usb. Then mount the OP-1"
+
+        echo -e "  folder \t\t\t Return the OP-1's folder if its mounted."
+
+        echo -e "  folder-mount \t\t\t Return the OP-1's folder. Mount the OP-1 if necessary."
+        exit 255
+        ;;
+esac
+
