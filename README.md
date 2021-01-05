@@ -1,4 +1,4 @@
-# OP1 Tools
+# OP1 Tools for Linux
 
 ## Features
 This software can do multiple things:
