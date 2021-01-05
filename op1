@@ -270,11 +270,13 @@ label_folder() {
     IFS_backup="$IFS"
     IFS=$'\n' #change bash variable separator
     for f in $(find . -name '*.aif'); do
-        if $( grep -qs '"type":"sampler"}' "$f"); then
-            mkdir -p "$(dirname "$folder2${f:1}")"
-            cp "$f" "$folder2${f:1}"
-        else
-            parameters+=( "$1${f:1}" "$folder2${f:1}" )
+        if [ ! -f "$folder2${f:1}" ]; then #only if target non-existant yet
+            if $( grep -qs '"type":"sampler"}' "$f"); then
+                mkdir -p "$(dirname "$folder2${f:1}")"
+                cp "$f" "$folder2${f:1}"
+            else
+                parameters+=( "$1${f:1}" "$folder2${f:1}" )
+            fi
         fi
     done
     IFS="$IFS_backup"
