@@ -196,6 +196,7 @@ label_once() { # parameters: 1_in 2_in ... 8_in 1_out 2_out ... 8_out
     local num_slots=$(($# / 2))
 
     for ((i = 1; i <= $num_slots; i++ )); do
+        echo sending ${!i}
         rm "$op"/synth/user/"$i".aif
         cp "${!i}" "$op"/synth/user/"$i".aif
     done
@@ -272,6 +273,11 @@ label_folder() {
     for f in $(find . -name '*.aif'); do
         if [ ! -f "$folder2${f:1}" ]; then #only if target non-existant yet
             if $( grep -qs '"type":"sampler"}' "$f"); then
+                echo skip "$f"
+                mkdir -p "$(dirname "$folder2${f:1}")"
+                cp "$f" "$folder2${f:1}"
+            elif ! grep 'APPL' "$f" > /dev/null; then
+                echo skip "$f"
                 mkdir -p "$(dirname "$folder2${f:1}")"
                 cp "$f" "$folder2${f:1}"
             else
@@ -318,7 +324,11 @@ op1_count() {
     fi
     synandsamp=$( find "$op"/synth/ -type f | wc -l )
     drum=$( find "$op"/drum/ -type f | wc -l )
-    samp=$( grep '"type":"sampler"}' "$op"/synth/*/* | wc -l)
+    sampa=$( grep '"type":"sampler"}' "$op"/synth/*/* | wc -l)
+    synandsamp_only_compliant=$( grep 'APPL' "$op"/synth/*/* |wc -l )
+    sampb=$(( $synandsamp-$synandsamp_only_compliant ))
+    samp=$(( $sampa + $sampb ))
+
     syn=$(( $synandsamp-$samp ))
 
     echo -e "Synthesizer patches \t$syn / 100"
