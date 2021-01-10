@@ -7,7 +7,7 @@ This software can do multiple things:
 - Count how many patches are on your OP-1 and how close you are to the limits
 - OP1 USB handling: detecting OP-1, mounting, ejecting, ...
 
-The main feature of this tool is the 'label' function. It allows you to convert OP-1 synthesizer patches, that simply say 'OP-1 PACTH' to synthesizer patches that include a short preview of the sound. To do this, patches are transfered to your OP-1 via usb, processed there, and transfered back. This overrides the 8 user-synths, so you should use it like this:
+The main feature of this tool is the 'label' function. It allows you to convert OP-1 synthesizer patches, that simply say 'OP-1 PATCH' to synthesizer patches that include a short preview of the sound. To do this, patches are transfered to your OP-1 via usb, processed there, and transfered back. This overrides the 8 user-synths, so you should use it like this:
 
 ./op1 backup-user-synth path/to/backup/folder
 
@@ -15,7 +15,10 @@ The main feature of this tool is the 'label' function. It allows you to convert 
 
 ./op1 restore-user-synth path/to/backup/folder
 
-For details see 'usage'.
+For more details see 'usage'.
+
+## How are the preview sounds generated?
+The OP-1 stores synthesizer patches in the metadata of .aif files. But there are two different ways: Either an .aif file, that says 'OP-1 PATCH' or in an .aif file that contains a short preview of the sound. All synthesizer patches stored on the OP-1 are in the former format, except the 8 user patcher, which are stored in the latter format. So the label function of this tool just copies 8 files without preview from your PC to the user synth folder, waits for you to restart and reconnect the OP-1, and copies the files, which now contain a sound preview, back to your PC. This will be repeated until all patches are processed.
 
 ## Requirements
 This bash script for linux requires udisks2, which is probably already installed on your system.
